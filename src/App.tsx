@@ -195,78 +195,85 @@ export default function App() {
   }
 
   // ---------------- TV MODE (colorful, not plain black) ----------------
+  // ---------------- TV MODE (classic colored cards) ----------------
   if (tvMode) {
+    const accentColors = [
+      "border-indigo-400",
+      "border-emerald-500",
+      "border-amber-400",
+      "border-rose-400",
+      "border-sky-400",
+      "border-violet-400",
+      "border-pink-400",
+      "border-teal-400",
+    ];
+
     return (
-      <div className="min-h-screen text-white bg-gradient-to-br from-indigo-900 via-slate-900 to-emerald-900">
-        <div className="max-w-6xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between gap-4">
+      <div className="min-h-screen bg-white text-slate-900">
+        <div className="max-w-6xl mx-auto px-6 py-8">
+          <div className="flex items-center justify-between mb-8">
             <div>
-              <div className="text-2xl font-bold drop-shadow">
+              <div className="text-3xl font-extrabold tracking-tight">
                 {mode === "couples" ? "Couples Assignments" : "Round Robin Assignments"}
               </div>
-              <div className="text-sm text-white/80">
-                {rounds.length} game{rounds.length === 1 ? "" : "s"} • {perCourtHint}
+              <div className="text-slate-600 mt-1">
+                Game board view • {mode === "couples" ? "2 couples per court" : "4 players per court"}
               </div>
             </div>
-            <button
-              onClick={() => setTvMode(false)}
-              className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20"
-            >
-              Exit TV Mode
-            </button>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleGenerate}
+                className="px-4 py-2 rounded-xl bg-slate-900 text-white font-semibold hover:opacity-90"
+              >
+                Re-Generate
+              </button>
+              <button
+                onClick={() => setTvMode(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 font-semibold"
+              >
+                Exit TV Mode
+              </button>
+            </div>
           </div>
 
-          <div className="mt-6 space-y-6">
-            {rounds.map((r) => (
-              <div
-                key={r.gameNumber}
-                className="rounded-2xl border border-white/15 bg-white/10 backdrop-blur p-5"
-              >
-                <div className="flex items-baseline justify-between gap-4">
-                  <div className="text-xl font-semibold">Game {r.gameNumber}</div>
-                  <div className="text-sm text-white/80">
-                    Byes: {r.byes.length ? r.byes.join(", ") : "None"}
+          {/* Show ONLY Game 1 like your screenshot */}
+          <div className="space-y-5">
+            {(rounds[0]?.courts ?? []).map((c, index) => {
+              const color = accentColors[index % accentColors.length];
+
+              return (
+                <div
+                  key={`court-${c.courtNumber}`}
+                  className={`rounded-2xl border-2 ${color} bg-slate-100 px-6 py-6 flex items-center justify-between shadow-sm`}
+                >
+                  <div className="text-2xl font-extrabold">Court {c.courtNumber}</div>
+
+                  <div className="text-2xl font-extrabold tracking-wide">
+                    {mode === "couples"
+                      ? `${c.group[0] ?? "—"}  `}
+                    <span className="mx-3 text-slate-500 font-black">vs</span>
+                    {mode === "couples"
+                      ? `${c.group[1] ?? "—"}`
+                      : (c.group ?? []).join("  •  ")}
                   </div>
                 </div>
-
-                <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {r.courts.map((c) => (
-                    <div
-                      key={c.courtNumber}
-                      className="rounded-2xl border border-white/15 bg-black/20 p-4"
-                    >
-                      <div className="text-lg font-semibold mb-2">Court {c.courtNumber}</div>
-
-                      {mode === "couples" ? (
-                        <div className="text-base leading-7">
-                          <div>{c.group[0] ?? "—"}</div>
-                          <div>{c.group[1] ?? "—"}</div>
-                        </div>
-                      ) : (
-                        <div className="text-base leading-7">
-                          <div>{c.group[0] ?? "—"}</div>
-                          <div>{c.group[1] ?? "—"}</div>
-                          <div>{c.group[2] ?? "—"}</div>
-                          <div>{c.group[3] ?? "—"}</div>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          <div className="mt-8 flex gap-3">
-            <button
-              onClick={handleGenerate}
-              className="px-5 py-3 rounded-2xl bg-white text-slate-900 font-semibold hover:opacity-90"
-            >
-              Re-Generate
-            </button>
+          {/* Optional: Byes */}
+          <div className="mt-8 text-lg font-semibold">
+            Byes:{" "}
+            <span className="font-normal text-slate-700">
+              {rounds[0]?.byes?.length ? rounds[0].byes.join(", ") : "None"}
+            </span>
+          </div>
+
+          <div className="mt-8">
             <button
               onClick={handleReset}
-              className="px-5 py-3 rounded-2xl bg-white/10 hover:bg-white/20 border border-white/20"
+              className="px-5 py-3 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 font-semibold"
             >
               Reset All
             </button>
@@ -275,6 +282,7 @@ export default function App() {
       </div>
     );
   }
+
 
   // ---------------- SETUP MODE (nice colors) ----------------
   return (
