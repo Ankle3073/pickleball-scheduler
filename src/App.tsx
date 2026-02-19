@@ -3,8 +3,8 @@ import { useMemo, useState } from "react";
 type Mode = "couples" | "roundRobin";
 
 type CourtAssignment = {
-  courtNumber: number; // actual court # (e.g., 5)
-  group: string[];
+  courtNumber: number; // actual court number (e.g., 5)
+  group: string[];     // ["Couple 3","Couple 7"] or ["Player 12","Player 18","Player 4","Player 22"]
 };
 
 type Round = {
@@ -35,7 +35,7 @@ function buildParticipants(mode: Mode, count: number): string[] {
 }
 
 function parsePositiveInt(text: string): number {
-  // Keep digits only, so phones can use normal keyboard and we still get a clean number.
+  // Digits only; lets you type anything but we interpret as a positive integer.
   const cleaned = (text ?? "").replace(/[^\d]/g, "");
   const n = Number.parseInt(cleaned, 10);
   return Number.isFinite(n) ? n : 0;
@@ -43,29 +43,26 @@ function parsePositiveInt(text: string): number {
 
 function parseCourtsInput(text: string): { courts: number[]; error: string } {
   const raw = (text ?? "").trim();
-  if (!raw) return { courts: [], error: "Please enter courts (e.g., 8 or 1-3,5,6)." };
+  if (!raw) return { courts: [], error: 'Please enter courts (example: "8" or "1-3,5,6").' };
 
-  // If it's just a number: treat as count (1..N)
+  // If it's just a number, treat it as a count (1..N)
   if (/^\d+$/.test(raw)) {
     const n = Number.parseInt(raw, 10);
-    if (!Number.isFinite(n) || n <= 0) {
-      return { courts: [], error: "Court count must be at least 1." };
-    }
+    if (!Number.isFinite(n) || n <= 0) return { courts: [], error: "Court count must be at least 1." };
     return { courts: Array.from({ length: n }, (_, i) => i + 1), error: "" };
   }
 
   // Otherwise parse list/ranges like "1-3, 5,6"
   const tokens = raw.split(",").map((t) => t.trim()).filter(Boolean);
-  if (!tokens.length) return { courts: [], error: "Please enter courts (e.g., 1-3,5,6)." };
+  if (!tokens.length) return { courts: [], error: 'Please enter courts (example: "1-3,5,6").' };
 
   const set = new Set<number>();
 
   for (const tok of tokens) {
-    // Range: a-b
-    const m = tok.match(/^(\d+)\s*-\s*(\d+)$/);
-    if (m) {
-      const a = Number.parseInt(m[1], 10);
-      const b = Number.parseInt(m[2], 10);
+    const range = tok.match(/^(\d+)\s*-\s*(\d+)$/);
+    if (range) {
+      const a = Number.parseInt(range[1], 10);
+      const b = Number.parseInt(range[2], 10);
       if (!Number.isFinite(a) || !Number.isFinite(b) || a <= 0 || b <= 0) {
         return { courts: [], error: `Invalid range "${tok}". Use positive numbers.` };
       }
@@ -75,12 +72,9 @@ function parseCourtsInput(text: string): { courts: number[]; error: string } {
       continue;
     }
 
-    // Single number
     if (/^\d+$/.test(tok)) {
       const n = Number.parseInt(tok, 10);
-      if (!Number.isFinite(n) || n <= 0) {
-        return { courts: [], error: `Invalid court number "${tok}".` };
-      }
+      if (!Number.isFinite(n) || n <= 0) return { courts: [], error: `Invalid court number "${tok}".` };
       set.add(n);
       continue;
     }
@@ -104,15 +98,9 @@ function generateSchedule(args: {
   const participants = buildParticipants(mode, participantCount);
   const unitsPerCourt = mode === "couples" ? 2 : 4;
 
-  if (participants.length === 0) {
-    return { rounds: [], error: "Please enter the number of couples/players." };
-  }
-  if (!courtNumbers.length) {
-    return { rounds: [], error: "Please enter courts (e.g., 8 or 1-3,5,6)." };
-  }
-  if (games <= 0) {
-    return { rounds: [], error: "Please enter the number of games." };
-  }
+  if (participants.length === 0) return { rounds: [], error: "Please enter the number of couples/players." };
+  if (!courtNumbers.length) return { rounds: [], error: 'Please enter courts (example: "8" or "1-3,5,6").' };
+  if (games <= 0) return { rounds: [], error: "Please enter the number of games." };
 
   const rounds: Round[] = [];
 
@@ -128,7 +116,7 @@ function generateSchedule(args: {
     rounds.push({
       gameNumber: g,
       courts: groups.map((group, idx) => ({
-        courtNumber: courtNumbers[idx], // IMPORTANT: actual court number chosen
+        courtNumber: courtNumbers[idx], // preserve actual court numbers
         group,
       })),
       byes,
@@ -138,12 +126,23 @@ function generateSchedule(args: {
   return { rounds, error: "" };
 }
 
+function numbersOnlyDash(group: string[]): string {
+  // "Couple 12" -> "12", "Player 4" -> "4"
+  // If anything weird slips in, it still tries to extract digits.
+  return (group ?? [])
+    .map((s) => {
+      const m = String(s).match(/(\d+)/);
+      return m ? m[1] : "—";
+    })
+    .join(" - ");
+}
+
 export default function App() {
   const [mode, setMode] = useState<Mode>("couples");
 
-  // Inputs (keep as TEXT so phone keyboard allows commas/dashes when needed)
+  // Inputs are TEXT so phone keyboard allows commas/dashes
   const [countText, setCountText] = useState<string>("");
-  const [courtsText, setCourtsText] = useState<string>(""); // can be "8" or "1-3,5,6"
+  const [courtsText, setCourtsText] = useState<string>(""); // "8" or "1-3,5,6"
   const [gamesText, setGamesText] = useState<string>("");
 
   // Output + UI state
@@ -152,13 +151,11 @@ export default function App() {
   const [tvMode, setTvMode] = useState<boolean>(false);
   const [tvGameIndex, setTvGameIndex] = useState<number>(0);
 
-  const countLabel = useMemo(() => {
-    return mode === "couples" ? "Number of couples" : "Number of players";
-  }, [mode]);
-
-  const perCourtHint = useMemo(() => {
-    return mode === "couples" ? "2 couples per court (4 players)" : "4 players per court";
-  }, [mode]);
+  const countLabel = useMemo(() => (mode === "couples" ? "Number of couples" : "Number of players"), [mode]);
+  const perCourtHint = useMemo(
+    () => (mode === "couples" ? "2 couples per court (4 players)" : "4 players per court"),
+    [mode]
+  );
 
   function handleGenerate(): void {
     const participantCount = parsePositiveInt(countText);
@@ -182,11 +179,11 @@ export default function App() {
     setRounds(result.rounds);
     setTvGameIndex(0);
 
-    // Requirement: auto-enter TV mode after generating
     if (!result.error) setTvMode(true);
   }
 
   function handleReset(): void {
+    // Setup reset clears EVERYTHING
     setMode("couples");
     setCountText("");
     setCourtsText("");
@@ -197,12 +194,7 @@ export default function App() {
     setTvGameIndex(0);
   }
 
-  // ---------------- TV MODE (colorful, not plain black) ----------------
-  // ---------------- TV MODE (classic colored cards) ----------------
-   // ---------------- TV MODE (classic colored cards) ----------------
-  // ---------------- TV MODE (classic colored cards + game arrows) ----------------
-    // ---------------- TV MODE ----------------
-   // ---------------- TV MODE ----------------
+  // ---------------- TV MODE ----------------
   if (tvMode) {
     const accentColors = [
       "border-indigo-400",
@@ -224,10 +216,10 @@ export default function App() {
 
     return (
       <div className="min-h-screen bg-white text-slate-900">
-        <div className="max-w-6xl mx-auto px-6 py-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
           {/* HEADER */}
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-            {/* LEFT SIDE */}
+          <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+            {/* LEFT SIDE: Exit always visible on phones */}
             <div className="flex items-start gap-4">
               <button
                 onClick={() => setTvMode(false)}
@@ -237,24 +229,24 @@ export default function App() {
               </button>
 
               <div>
-                <div className="text-2xl font-extrabold">
+                <div className="text-2xl sm:text-3xl font-extrabold tracking-tight">
                   {mode === "couples" ? "Couples Assignments" : "Round Robin Assignments"}
                 </div>
-                <div className="text-slate-600">
+                <div className="text-slate-600 mt-1">
                   Game {totalGames ? safeIndex + 1 : 0} of {totalGames}
                 </div>
 
-                {/* BYES MOVED TO TOP */}
+                {/* BYES AT TOP */}
                 <div className="text-slate-700 font-semibold mt-1">
                   Byes:{" "}
                   <span className="font-normal text-slate-700">
-                    {round?.byes?.length ? round.byes.join(", ") : "None"}
+                    {round?.byes?.length ? numbersOnlyDash(round.byes) : "None"}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* RIGHT SIDE - ARROWS */}
+            {/* RIGHT SIDE: Game arrows */}
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setTvGameIndex((i) => Math.max(0, i - 1))}
@@ -286,11 +278,7 @@ export default function App() {
           <div className="space-y-4">
             {(round?.courts ?? []).map((c, index) => {
               const color = accentColors[index % accentColors.length];
-
-              // Round-robin: shorten "Player 12" -> "P12" to fit phones
-              const rrText = (c.group ?? [])
-                .map((p) => p.replace("Player ", "P"))
-                .join(" • ");
+              const numberText = numbersOnlyDash(c.group ?? []);
 
               return (
                 <div
@@ -298,22 +286,12 @@ export default function App() {
                   className={`rounded-2xl border-2 ${color} bg-slate-100 px-5 py-4 shadow-sm`}
                 >
                   <div className="flex items-start justify-between gap-4">
-                    {/* Court label never collides */}
-                    <div className="text-lg font-extrabold shrink-0">
+                    <div className="text-lg sm:text-xl font-extrabold shrink-0">
                       Court {c.courtNumber}
                     </div>
 
-                    {/* Smaller fonts + better wrapping on phones */}
-                    <div className="text-base md:text-lg font-extrabold text-right leading-snug break-words">
-                      {mode === "couples" ? (
-                        <>
-                          {c.group[0] ?? "—"}
-                          <span className="mx-2 text-slate-500 font-black">vs</span>
-                          {c.group[1] ?? "—"}
-                        </>
-                      ) : (
-                        rrText
-                      )}
+                    <div className="text-base sm:text-lg font-extrabold text-right leading-snug break-words">
+                      {numberText}
                     </div>
                   </div>
                 </div>
@@ -321,13 +299,13 @@ export default function App() {
             })}
           </div>
 
-          {/* Reset button removed on purpose (too dangerous) */}
+          {/* NO Reset All + NO Regenerate on purpose */}
         </div>
       </div>
     );
   }
 
-  // ---------------- SETUP MODE (nice colors) ----------------
+  // ---------------- SETUP MODE ----------------
   return (
     <div className="min-h-screen bg-gradient-to-br from-sky-50 via-white to-emerald-50 text-slate-900">
       <div className="max-w-3xl mx-auto px-6 py-10">
@@ -336,7 +314,6 @@ export default function App() {
           <div className="text-slate-600 mt-1">
             Generate court assignments for couples play or round robin (individuals).
           </div>
-
 
           <div className="mt-6 grid gap-4">
             <div className="grid sm:grid-cols-2 gap-3">
@@ -400,7 +377,7 @@ export default function App() {
                   inputMode="text"
                   value={courtsText}
                   onChange={(e) => setCourtsText(e.target.value)}
-                  placeholder="e.g., 8 or 1-3,5,6"
+                  placeholder='e.g., 8 or "1-3,5,6"'
                   className="mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 outline-none focus:ring-2 focus:ring-emerald-200"
                 />
               </label>
