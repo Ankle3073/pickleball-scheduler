@@ -196,6 +196,7 @@ export default function App() {
 
   // ---------------- TV MODE (colorful, not plain black) ----------------
   // ---------------- TV MODE (classic colored cards) ----------------
+   // ---------------- TV MODE (classic colored cards) ----------------
   if (tvMode) {
     const accentColors = [
       "border-indigo-400",
@@ -208,16 +209,23 @@ export default function App() {
       "border-teal-400",
     ];
 
+    const firstRound = rounds[0];
+
     return (
       <div className="min-h-screen bg-white text-slate-900">
         <div className="max-w-6xl mx-auto px-6 py-8">
           <div className="flex items-center justify-between mb-8">
             <div>
               <div className="text-3xl font-extrabold tracking-tight">
-                {mode === "couples" ? "Couples Assignments" : "Round Robin Assignments"}
+                {mode === "couples"
+                  ? "Couples Assignments"
+                  : "Round Robin Assignments"}
               </div>
               <div className="text-slate-600 mt-1">
-                Game board view • {mode === "couples" ? "2 couples per court" : "4 players per court"}
+                Game board view •{" "}
+                {mode === "couples"
+                  ? "2 couples per court"
+                  : "4 players per court"}
               </div>
             </div>
 
@@ -237,9 +245,8 @@ export default function App() {
             </div>
           </div>
 
-          {/* Show ONLY Game 1 like your screenshot */}
           <div className="space-y-5">
-            {(rounds[0]?.courts ?? []).map((c, index) => {
+            {(firstRound?.courts ?? []).map((c, index) => {
               const color = accentColors[index % accentColors.length];
 
               return (
@@ -247,26 +254,34 @@ export default function App() {
                   key={`court-${c.courtNumber}`}
                   className={`rounded-2xl border-2 ${color} bg-slate-100 px-6 py-6 flex items-center justify-between shadow-sm`}
                 >
-                  <div className="text-2xl font-extrabold">Court {c.courtNumber}</div>
+                  <div className="text-2xl font-extrabold">
+                    Court {c.courtNumber}
+                  </div>
 
                   <div className="text-2xl font-extrabold tracking-wide">
-                    {mode === "couples"
-                      ? `${c.group[0] ?? "—"}  `}
-                    <span className="mx-3 text-slate-500 font-black">vs</span>
-                    {mode === "couples"
-                      ? `${c.group[1] ?? "—"}`
-                      : (c.group ?? []).join("  •  ")}
+                    {mode === "couples" ? (
+                      <>
+                        {c.group[0] ?? "—"}
+                        <span className="mx-3 text-slate-500 font-black">
+                          vs
+                        </span>
+                        {c.group[1] ?? "—"}
+                      </>
+                    ) : (
+                      (c.group ?? []).join("  •  ")
+                    )}
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {/* Optional: Byes */}
           <div className="mt-8 text-lg font-semibold">
             Byes:{" "}
             <span className="font-normal text-slate-700">
-              {rounds[0]?.byes?.length ? rounds[0].byes.join(", ") : "None"}
+              {firstRound?.byes?.length
+                ? firstRound.byes.join(", ")
+                : "None"}
             </span>
           </div>
 
