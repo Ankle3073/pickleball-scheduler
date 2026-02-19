@@ -202,6 +202,7 @@ export default function App() {
    // ---------------- TV MODE (classic colored cards) ----------------
   // ---------------- TV MODE (classic colored cards + game arrows) ----------------
     // ---------------- TV MODE ----------------
+   // ---------------- TV MODE ----------------
   if (tvMode) {
     const accentColors = [
       "border-indigo-400",
@@ -224,12 +225,10 @@ export default function App() {
     return (
       <div className="min-h-screen bg-white text-slate-900">
         <div className="max-w-6xl mx-auto px-6 py-8">
-
           {/* HEADER */}
           <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-
             {/* LEFT SIDE */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-start gap-4">
               <button
                 onClick={() => setTvMode(false)}
                 className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 font-semibold"
@@ -239,12 +238,18 @@ export default function App() {
 
               <div>
                 <div className="text-2xl font-extrabold">
-                  {mode === "couples"
-                    ? "Couples Assignments"
-                    : "Round Robin Assignments"}
+                  {mode === "couples" ? "Couples Assignments" : "Round Robin Assignments"}
                 </div>
                 <div className="text-slate-600">
                   Game {totalGames ? safeIndex + 1 : 0} of {totalGames}
+                </div>
+
+                {/* BYES MOVED TO TOP */}
+                <div className="text-slate-700 font-semibold mt-1">
+                  Byes:{" "}
+                  <span className="font-normal text-slate-700">
+                    {round?.byes?.length ? round.byes.join(", ") : "None"}
+                  </span>
                 </div>
               </div>
             </div>
@@ -282,48 +287,41 @@ export default function App() {
             {(round?.courts ?? []).map((c, index) => {
               const color = accentColors[index % accentColors.length];
 
+              // Round-robin: shorten "Player 12" -> "P12" to fit phones
+              const rrText = (c.group ?? [])
+                .map((p) => p.replace("Player ", "P"))
+                .join(" • ");
+
               return (
                 <div
                   key={`game-${safeIndex}-court-${c.courtNumber}`}
-                  className={`rounded-2xl border-2 ${color} bg-slate-100 px-6 py-5 flex items-center justify-between shadow-sm`}
+                  className={`rounded-2xl border-2 ${color} bg-slate-100 px-5 py-4 shadow-sm`}
                 >
-                  <div className="text-xl font-extrabold">
-                    Court {c.courtNumber}
-                  </div>
+                  <div className="flex items-start justify-between gap-4">
+                    {/* Court label never collides */}
+                    <div className="text-lg font-extrabold shrink-0">
+                      Court {c.courtNumber}
+                    </div>
 
-                  <div className="text-xl font-extrabold">
-                    {mode === "couples" ? (
-                      <>
-                        {c.group[0] ?? "—"}
-                        <span className="mx-3 text-slate-500 font-black">vs</span>
-                        {c.group[1] ?? "—"}
-                      </>
-                    ) : (
-                      (c.group ?? []).join("  •  ")
-                    )}
+                    {/* Smaller fonts + better wrapping on phones */}
+                    <div className="text-base md:text-lg font-extrabold text-right leading-snug break-words">
+                      {mode === "couples" ? (
+                        <>
+                          {c.group[0] ?? "—"}
+                          <span className="mx-2 text-slate-500 font-black">vs</span>
+                          {c.group[1] ?? "—"}
+                        </>
+                      ) : (
+                        rrText
+                      )}
+                    </div>
                   </div>
                 </div>
               );
             })}
           </div>
 
-          {/* BYES */}
-          <div className="mt-6 text-base font-semibold">
-            Byes:{" "}
-            <span className="font-normal text-slate-700">
-              {round?.byes?.length ? round.byes.join(", ") : "None"}
-            </span>
-          </div>
-
-          <div className="mt-6">
-            <button
-              onClick={handleReset}
-              className="px-5 py-3 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 font-semibold"
-            >
-              Reset All
-            </button>
-          </div>
-
+          {/* Reset button removed on purpose (too dangerous) */}
         </div>
       </div>
     );
@@ -338,6 +336,7 @@ export default function App() {
           <div className="text-slate-600 mt-1">
             Generate court assignments for couples play or round robin (individuals).
           </div>
+
 
           <div className="mt-6 grid gap-4">
             <div className="grid sm:grid-cols-2 gap-3">
