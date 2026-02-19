@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 type Mode = "couples" | "roundRobin";
 
@@ -76,7 +76,7 @@ function generateSchedule(args: {
   return { rounds, error: "" };
 }
 
-export default function App(): JSX.Element {
+export default function App() {
   const [mode, setMode] = useState<Mode>("couples");
 
   // Inputs (no names)
