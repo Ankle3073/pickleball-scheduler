@@ -150,6 +150,7 @@ export default function App() {
   const [rounds, setRounds] = useState<Round[]>([]);
   const [error, setError] = useState<string>("");
   const [tvMode, setTvMode] = useState<boolean>(false);
+  const [tvGameIndex, setTvGameIndex] = useState<number>(0);
 
   const countLabel = useMemo(() => {
     return mode === "couples" ? "Number of couples" : "Number of players";
@@ -179,6 +180,7 @@ export default function App() {
 
     setError(result.error);
     setRounds(result.rounds);
+    setTvGameIndex(0);
 
     // Requirement: auto-enter TV mode after generating
     if (!result.error) setTvMode(true);
@@ -192,11 +194,13 @@ export default function App() {
     setRounds([]);
     setError("");
     setTvMode(false);
+    setTvGameIndex(0);
   }
 
   // ---------------- TV MODE (colorful, not plain black) ----------------
   // ---------------- TV MODE (classic colored cards) ----------------
    // ---------------- TV MODE (classic colored cards) ----------------
+  // ---------------- TV MODE (classic colored cards + game arrows) ----------------
   if (tvMode) {
     const accentColors = [
       "border-indigo-400",
@@ -209,33 +213,63 @@ export default function App() {
       "border-teal-400",
     ];
 
-    const firstRound = rounds[0];
+    const totalGames = rounds.length;
+    const safeIndex = Math.min(Math.max(tvGameIndex, 0), Math.max(totalGames - 1, 0));
+    const round = rounds[safeIndex];
+
+    const canPrev = totalGames > 1 && safeIndex > 0;
+    const canNext = totalGames > 1 && safeIndex < totalGames - 1;
 
     return (
       <div className="min-h-screen bg-white text-slate-900">
         <div className="max-w-6xl mx-auto px-6 py-8">
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <div className="text-3xl font-extrabold tracking-tight">
-                {mode === "couples"
-                  ? "Couples Assignments"
-                  : "Round Robin Assignments"}
+              <div className="text-2xl font-extrabold tracking-tight">
+                {mode === "couples" ? "Couples Assignments" : "Round Robin Assignments"}
               </div>
               <div className="text-slate-600 mt-1">
-                Game board view •{" "}
-                {mode === "couples"
-                  ? "2 couples per court"
-                  : "4 players per court"}
+                Game {totalGames ? safeIndex + 1 : 0} of {totalGames}
               </div>
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex items-center gap-3">
+              {/* Game selector arrows */}
+              <button
+                onClick={() => setTvGameIndex((i) => Math.max(0, i - 1))}
+                disabled={!canPrev}
+                className={`px-4 py-2 rounded-xl font-extrabold border ${
+                  canPrev
+                    ? "bg-slate-100 hover:bg-slate-200 border-slate-200"
+                    : "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed"
+                }`}
+                aria-label="Previous game"
+                title="Previous game"
+              >
+                ←
+              </button>
+
+              <button
+                onClick={() => setTvGameIndex((i) => Math.min(totalGames - 1, i + 1))}
+                disabled={!canNext}
+                className={`px-4 py-2 rounded-xl font-extrabold border ${
+                  canNext
+                    ? "bg-slate-100 hover:bg-slate-200 border-slate-200"
+                    : "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed"
+                }`}
+                aria-label="Next game"
+                title="Next game"
+              >
+                →
+              </button>
+
               <button
                 onClick={handleGenerate}
                 className="px-4 py-2 rounded-xl bg-slate-900 text-white font-semibold hover:opacity-90"
               >
                 Re-Generate
               </button>
+
               <button
                 onClick={() => setTvMode(false)}
                 className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 font-semibold"
@@ -245,26 +279,23 @@ export default function App() {
             </div>
           </div>
 
-          <div className="space-y-5">
-            {(firstRound?.courts ?? []).map((c, index) => {
+          {/* Slightly smaller like before */}
+          <div className="space-y-4">
+            {(round?.courts ?? []).map((c, index) => {
               const color = accentColors[index % accentColors.length];
 
               return (
                 <div
-                  key={`court-${c.courtNumber}`}
-                  className={`rounded-2xl border-2 ${color} bg-slate-100 px-6 py-6 flex items-center justify-between shadow-sm`}
+                  key={`game-${safeIndex}-court-${c.courtNumber}`}
+                  className={`rounded-2xl border-2 ${color} bg-slate-100 px-6 py-5 flex items-center justify-between shadow-sm`}
                 >
-                  <div className="text-2xl font-extrabold">
-                    Court {c.courtNumber}
-                  </div>
+                  <div className="text-xl font-extrabold">Court {c.courtNumber}</div>
 
-                  <div className="text-2xl font-extrabold tracking-wide">
+                  <div className="text-xl font-extrabold tracking-wide">
                     {mode === "couples" ? (
                       <>
                         {c.group[0] ?? "—"}
-                        <span className="mx-3 text-slate-500 font-black">
-                          vs
-                        </span>
+                        <span className="mx-3 text-slate-500 font-black">vs</span>
                         {c.group[1] ?? "—"}
                       </>
                     ) : (
@@ -276,16 +307,14 @@ export default function App() {
             })}
           </div>
 
-          <div className="mt-8 text-lg font-semibold">
+          <div className="mt-6 text-base font-semibold">
             Byes:{" "}
             <span className="font-normal text-slate-700">
-              {firstRound?.byes?.length
-                ? firstRound.byes.join(", ")
-                : "None"}
+              {round?.byes?.length ? round.byes.join(", ") : "None"}
             </span>
           </div>
 
-          <div className="mt-8">
+          <div className="mt-6">
             <button
               onClick={handleReset}
               className="px-5 py-3 rounded-2xl bg-white border border-slate-200 hover:bg-slate-50 font-semibold"
