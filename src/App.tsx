@@ -201,6 +201,7 @@ export default function App() {
   // ---------------- TV MODE (classic colored cards) ----------------
    // ---------------- TV MODE (classic colored cards) ----------------
   // ---------------- TV MODE (classic colored cards + game arrows) ----------------
+    // ---------------- TV MODE ----------------
   if (tvMode) {
     const accentColors = [
       "border-indigo-400",
@@ -223,9 +224,12 @@ export default function App() {
     return (
       <div className="min-h-screen bg-white text-slate-900">
         <div className="max-w-6xl mx-auto px-6 py-8">
-                    <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
-            {/* LEFT SIDE: Exit always visible on phones */}
-            <div className="flex items-center gap-3">
+
+          {/* HEADER */}
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+
+            {/* LEFT SIDE */}
+            <div className="flex items-center gap-4">
               <button
                 onClick={() => setTvMode(false)}
                 className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 font-semibold"
@@ -234,16 +238,18 @@ export default function App() {
               </button>
 
               <div>
-                <div className="text-2xl font-extrabold tracking-tight">
-                  {mode === "couples" ? "Couples Assignments" : "Round Robin Assignments"}
+                <div className="text-2xl font-extrabold">
+                  {mode === "couples"
+                    ? "Couples Assignments"
+                    : "Round Robin Assignments"}
                 </div>
-                <div className="text-slate-600 mt-1">
+                <div className="text-slate-600">
                   Game {totalGames ? safeIndex + 1 : 0} of {totalGames}
                 </div>
               </div>
             </div>
 
-            {/* RIGHT SIDE: Game selector buttons (labeled) */}
+            {/* RIGHT SIDE - ARROWS */}
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setTvGameIndex((i) => Math.max(0, i - 1))}
@@ -253,8 +259,6 @@ export default function App() {
                     ? "bg-slate-100 hover:bg-slate-200 border-slate-200"
                     : "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed"
                 }`}
-                aria-label="Previous game"
-                title="Previous game"
               >
                 ← Previous Game
               </button>
@@ -267,61 +271,13 @@ export default function App() {
                     ? "bg-slate-100 hover:bg-slate-200 border-slate-200"
                     : "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed"
                 }`}
-                aria-label="Next game"
-                title="Next game"
               >
                 Next Game →
               </button>
             </div>
           </div>
 
-            <div className="flex items-center gap-3">
-              {/* Game selector arrows */}
-              <button
-                onClick={() => setTvGameIndex((i) => Math.max(0, i - 1))}
-                disabled={!canPrev}
-                className={`px-4 py-2 rounded-xl font-extrabold border ${
-                  canPrev
-                    ? "bg-slate-100 hover:bg-slate-200 border-slate-200"
-                    : "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed"
-                }`}
-                aria-label="Previous game"
-                title="Previous game"
-              >
-                ←
-              </button>
-
-              <button
-                onClick={() => setTvGameIndex((i) => Math.min(totalGames - 1, i + 1))}
-                disabled={!canNext}
-                className={`px-4 py-2 rounded-xl font-extrabold border ${
-                  canNext
-                    ? "bg-slate-100 hover:bg-slate-200 border-slate-200"
-                    : "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed"
-                }`}
-                aria-label="Next game"
-                title="Next game"
-              >
-                →
-              </button>
-
-              <button
-                onClick={handleGenerate}
-                className="px-4 py-2 rounded-xl bg-slate-900 text-white font-semibold hover:opacity-90"
-              >
-                Re-Generate
-              </button>
-
-              <button
-                onClick={() => setTvMode(false)}
-                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 font-semibold"
-              >
-                Exit TV Mode
-              </button>
-            </div>
-          </div>
-
-          {/* Slightly smaller like before */}
+          {/* COURTS */}
           <div className="space-y-4">
             {(round?.courts ?? []).map((c, index) => {
               const color = accentColors[index % accentColors.length];
@@ -331,9 +287,11 @@ export default function App() {
                   key={`game-${safeIndex}-court-${c.courtNumber}`}
                   className={`rounded-2xl border-2 ${color} bg-slate-100 px-6 py-5 flex items-center justify-between shadow-sm`}
                 >
-                  <div className="text-xl font-extrabold">Court {c.courtNumber}</div>
+                  <div className="text-xl font-extrabold">
+                    Court {c.courtNumber}
+                  </div>
 
-                  <div className="text-xl font-extrabold tracking-wide">
+                  <div className="text-xl font-extrabold">
                     {mode === "couples" ? (
                       <>
                         {c.group[0] ?? "—"}
@@ -349,6 +307,7 @@ export default function App() {
             })}
           </div>
 
+          {/* BYES */}
           <div className="mt-6 text-base font-semibold">
             Byes:{" "}
             <span className="font-normal text-slate-700">
@@ -364,11 +323,11 @@ export default function App() {
               Reset All
             </button>
           </div>
+
         </div>
       </div>
     );
   }
-
 
   // ---------------- SETUP MODE (nice colors) ----------------
   return (
