@@ -223,15 +223,57 @@ export default function App() {
     return (
       <div className="min-h-screen bg-white text-slate-900">
         <div className="max-w-6xl mx-auto px-6 py-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <div className="text-2xl font-extrabold tracking-tight">
-                {mode === "couples" ? "Couples Assignments" : "Round Robin Assignments"}
-              </div>
-              <div className="text-slate-600 mt-1">
-                Game {totalGames ? safeIndex + 1 : 0} of {totalGames}
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+            {/* LEFT SIDE: Exit always visible on phones */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setTvMode(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 font-semibold"
+              >
+                Exit TV Mode
+              </button>
+
+              <div>
+                <div className="text-2xl font-extrabold tracking-tight">
+                  {mode === "couples" ? "Couples Assignments" : "Round Robin Assignments"}
+                </div>
+                <div className="text-slate-600 mt-1">
+                  Game {totalGames ? safeIndex + 1 : 0} of {totalGames}
+                </div>
               </div>
             </div>
+
+            {/* RIGHT SIDE: Game selector buttons (labeled) */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setTvGameIndex((i) => Math.max(0, i - 1))}
+                disabled={!canPrev}
+                className={`px-4 py-2 rounded-xl font-semibold border ${
+                  canPrev
+                    ? "bg-slate-100 hover:bg-slate-200 border-slate-200"
+                    : "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed"
+                }`}
+                aria-label="Previous game"
+                title="Previous game"
+              >
+                ← Previous Game
+              </button>
+
+              <button
+                onClick={() => setTvGameIndex((i) => Math.min(totalGames - 1, i + 1))}
+                disabled={!canNext}
+                className={`px-4 py-2 rounded-xl font-semibold border ${
+                  canNext
+                    ? "bg-slate-100 hover:bg-slate-200 border-slate-200"
+                    : "bg-slate-50 border-slate-100 text-slate-300 cursor-not-allowed"
+                }`}
+                aria-label="Next game"
+                title="Next game"
+              >
+                Next Game →
+              </button>
+            </div>
+          </div>
 
             <div className="flex items-center gap-3">
               {/* Game selector arrows */}
