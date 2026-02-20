@@ -3,15 +3,17 @@ import { useMemo, useState } from "react";
 type Mode = "couples" | "roundRobin";
 
 type CourtAssignment = {
-  courtNumber: number; // actual court number (e.g., 5)
-  group: string[];     // ["Couple 3","Couple 7"] or ["Player 12","Player 18","Player 4","Player 22"]
+  courtNumber: number;   // actual court number (e.g., 5)
+  group: number[];       // couples: [3,7]  roundRobin: [12,18,4,22]
 };
 
 type Round = {
   gameNumber: number;
   courts: CourtAssignment[];
-  byes: string[];
+  byes: number[];
 };
+
+/* ---------------- Utilities ---------------- */
 
 function shuffle<T>(array: T[]): T[] {
   const a = [...array];
@@ -28,14 +30,7 @@ function chunk<T>(array: T[], size: number): T[][] {
   return out;
 }
 
-function buildParticipants(mode: Mode, count: number): string[] {
-  if (count <= 0) return [];
-  const label = mode === "couples" ? "Couple" : "Player";
-  return Array.from({ length: count }, (_, i) => `${label} ${i + 1}`);
-}
-
 function parsePositiveInt(text: string): number {
-  // Digits only; lets you type anything but we interpret as a positive integer.
   const cleaned = (text ?? "").replace(/[^\d]/g, "");
   const n = Number.parseInt(cleaned, 10);
   return Number.isFinite(n) ? n : 0;
@@ -45,7 +40,7 @@ function parseCourtsInput(text: string): { courts: number[]; error: string } {
   const raw = (text ?? "").trim();
   if (!raw) return { courts: [], error: 'Please enter courts (example: "8" or "1-3,5,6").' };
 
-  // If it's just a number, treat it as a count (1..N)
+  // If just a number -> count (1..N)
   if (/^\d+$/.test(raw)) {
     const n = Number.parseInt(raw, 10);
     if (!Number.isFinite(n) || n <= 0) return { courts: [], error: "Court count must be at least 1." };
@@ -87,6 +82,49 @@ function parseCourtsInput(text: string): { courts: number[]; error: string } {
   return { courts, error: "" };
 }
 
+function pairKey(a: number, b: number): string {
+  const x = Math.min(a, b);
+  const y = Math.max(a, b);
+  return `${x}-${y}`;
+}
+
+function numbersOnlyDash(nums: number[]): string {
+  return (nums ?? []).join(" - ");
+}
+
+/* ---------------- Scheduling Logic ---------------- */
+
+function partnerScoreRR(group: number[], partnerCounts: Map<string, number>): number {
+  // Round robin fixed teams: (0,1) partners, (2,3) partners
+  const a = pairKey(group[0], group[1]);
+  const b = pairKey(group[2], group[3]);
+  return (partnerCounts.get(a) ?? 0) * 10 + (partnerCounts.get(b) ?? 0) * 10;
+}
+
+function bestOrderForRoundRobinGroup(group: number[], partnerCounts: Map<string, number>): number[] {
+  // We can reorder the 4 numbers to minimize repeated PARTNERS,
+  // while preserving the rule "first two are partners, last two are partners".
+  const [p1, p2, p3, p4] = group;
+
+  const candidates: number[][] = [
+    [p1, p2, p3, p4], // (p1,p2) (p3,p4)
+    [p1, p3, p2, p4], // (p1,p3) (p2,p4)
+    [p1, p4, p2, p3], // (p1,p4) (p2,p3)
+  ];
+
+  let best = candidates[0];
+  let bestScore = partnerScoreRR(best, partnerCounts);
+
+  for (let i = 1; i < candidates.length; i++) {
+    const s = partnerScoreRR(candidates[i], partnerCounts);
+    if (s < bestScore) {
+      bestScore = s;
+      best = candidates[i];
+    }
+  }
+  return best;
+}
+
 function generateSchedule(args: {
   mode: Mode;
   participantCount: number;
@@ -95,63 +133,162 @@ function generateSchedule(args: {
 }): { rounds: Round[]; error: string } {
   const { mode, participantCount, courtNumbers, games } = args;
 
-  const participants = buildParticipants(mode, participantCount);
   const unitsPerCourt = mode === "couples" ? 2 : 4;
 
-  if (participants.length === 0) return { rounds: [], error: "Please enter the number of couples/players." };
+  if (participantCount <= 0) return { rounds: [], error: "Please enter the number of couples/players." };
   if (!courtNumbers.length) return { rounds: [], error: 'Please enter courts (example: "8" or "1-3,5,6").' };
   if (games <= 0) return { rounds: [], error: "Please enter the number of games." };
 
+  const participants: number[] = Array.from({ length: participantCount }, (_, i) => i + 1);
+
+  // Balanced byes
+  const byeCounts = new Array(participantCount + 1).fill(0);
+
+  // Couples: matchup counts. RoundRobin: PARTNER pair counts only.
+  const partnerCounts = new Map<string, number>();
+
   const rounds: Round[] = [];
 
-  for (let g = 1; g <= games; g++) {
-    const shuffled = shuffle(participants);
+  function maxCourtsFillable(pCount: number): number {
+    return Math.min(courtNumbers.length, Math.floor(pCount / unitsPerCourt));
+  }
 
-    const maxUnitsUsed = courtNumbers.length * unitsPerCourt;
-    const used = shuffled.slice(0, maxUnitsUsed);
-    const byes = shuffled.slice(maxUnitsUsed);
+  function chooseByesFairly(pool: number[], byesNeeded: number): { byes: number[]; remaining: number[] } {
+    if (byesNeeded <= 0) return { byes: [], remaining: pool };
 
-    const groups = chunk(used, unitsPerCourt).slice(0, courtNumbers.length);
+    // Group by bye count so we choose from lowest first
+    const groups = new Map<number, number[]>();
+    for (const p of pool) {
+      const bc = byeCounts[p] ?? 0;
+      const arr = groups.get(bc) ?? [];
+      arr.push(p);
+      groups.set(bc, arr);
+    }
 
-    rounds.push({
-      gameNumber: g,
-      courts: groups.map((group, idx) => ({
-        courtNumber: courtNumbers[idx], // preserve actual court numbers
-        group,
-      })),
-      byes,
-    });
+    const byeList: number[] = [];
+    const countsSorted = Array.from(groups.keys()).sort((a, b) => a - b);
+
+    for (const bc of countsSorted) {
+      if (byeList.length >= byesNeeded) break;
+      const tied = shuffle(groups.get(bc) ?? []);
+      for (const p of tied) {
+        if (byeList.length >= byesNeeded) break;
+        byeList.push(p);
+      }
+    }
+
+    // increment counts
+    for (const p of byeList) byeCounts[p] = (byeCounts[p] ?? 0) + 1;
+
+    const byeSet = new Set(byeList);
+    const remaining = pool.filter((p) => !byeSet.has(p));
+    return { byes: byeList.sort((a, b) => a - b), remaining };
+  }
+
+  function scoreGroups(groups: number[][]): number {
+    let score = 0;
+
+    for (const g of groups) {
+      if (mode === "couples") {
+        // couples group length 2: avoid repeating matchup
+        const k = pairKey(g[0], g[1]);
+        score += (partnerCounts.get(k) ?? 0) * 10;
+      } else {
+        // round robin group length 4: avoid repeating partners only
+        score += partnerScoreRR(g, partnerCounts);
+      }
+    }
+
+    return score;
+  }
+
+  function buildGroupsMinRepeats(pool: number[], courtsToUse: number): number[][] {
+    const needed = courtsToUse * unitsPerCourt;
+    const usable = pool.slice(0, needed); // should be enough
+
+    const ATTEMPTS = mode === "couples" ? 400 : 1000;
+
+    let bestGroups: number[][] = [];
+    let bestScore = Number.POSITIVE_INFINITY;
+
+    for (let t = 0; t < ATTEMPTS; t++) {
+      const candidate = shuffle(usable);
+      let groups = chunk(candidate, unitsPerCourt).slice(0, courtsToUse);
+
+      // For round robin, reorder each group to minimize partner repeats
+      if (mode === "roundRobin") {
+        groups = groups.map((g) => bestOrderForRoundRobinGroup(g, partnerCounts));
+      }
+
+      const s = scoreGroups(groups);
+      if (s < bestScore) {
+        bestScore = s;
+        bestGroups = groups;
+        if (bestScore === 0) break;
+      }
+    }
+
+    return bestGroups;
+  }
+
+  for (let game = 1; game <= games; game++) {
+    const courtsToUse = maxCourtsFillable(participants.length);
+    const usedSlots = courtsToUse * unitsPerCourt;
+    const byesNeeded = participants.length - usedSlots;
+
+    // 1) Choose byes fairly
+    const { byes, remaining } = chooseByesFairly(participants, byesNeeded);
+
+    // 2) Minimize repeats
+    const groups = buildGroupsMinRepeats(remaining, courtsToUse);
+
+    // 3) Update history
+    if (mode === "couples") {
+      for (const g of groups) {
+        const k = pairKey(g[0], g[1]);
+        partnerCounts.set(k, (partnerCounts.get(k) ?? 0) + 1);
+      }
+    } else {
+      for (const g of groups) {
+        const a = pairKey(g[0], g[1]);
+        const b = pairKey(g[2], g[3]);
+        partnerCounts.set(a, (partnerCounts.get(a) ?? 0) + 1);
+        partnerCounts.set(b, (partnerCounts.get(b) ?? 0) + 1);
+      }
+    }
+
+    // 4) Assign to chosen courts
+    const courts: CourtAssignment[] = groups.map((group, idx) => ({
+      courtNumber: courtNumbers[idx],
+      group: group.slice(),
+    }));
+
+    rounds.push({ gameNumber: game, courts, byes });
   }
 
   return { rounds, error: "" };
 }
 
-function numbersOnlyDash(group: string[]): string {
-  // "Couple 12" -> "12", "Player 4" -> "4"
-  // If anything weird slips in, it still tries to extract digits.
-  return (group ?? [])
-    .map((s) => {
-      const m = String(s).match(/(\d+)/);
-      return m ? m[1] : "—";
-    })
-    .join(" - ");
-}
+/* ---------------- UI ---------------- */
 
 export default function App() {
   const [mode, setMode] = useState<Mode>("couples");
 
-  // Inputs are TEXT so phone keyboard allows commas/dashes
+  // text inputs so phone keyboard allows commas/dashes
   const [countText, setCountText] = useState<string>("");
-  const [courtsText, setCourtsText] = useState<string>(""); // "8" or "1-3,5,6"
+  const [courtsText, setCourtsText] = useState<string>("");
   const [gamesText, setGamesText] = useState<string>("");
 
-  // Output + UI state
   const [rounds, setRounds] = useState<Round[]>([]);
   const [error, setError] = useState<string>("");
   const [tvMode, setTvMode] = useState<boolean>(false);
   const [tvGameIndex, setTvGameIndex] = useState<number>(0);
 
-  const countLabel = useMemo(() => (mode === "couples" ? "Number of couples" : "Number of players"), [mode]);
+  const countLabel = useMemo(
+    () => (mode === "couples" ? "Number of couples" : "Number of players"),
+    [mode]
+  );
+
   const perCourtHint = useMemo(
     () => (mode === "couples" ? "2 couples per court (4 players)" : "4 players per court"),
     [mode]
@@ -183,7 +320,6 @@ export default function App() {
   }
 
   function handleReset(): void {
-    // Setup reset clears EVERYTHING
     setMode("couples");
     setCountText("");
     setCourtsText("");
@@ -217,9 +353,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-white text-slate-900">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
-          {/* HEADER */}
           <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
-            {/* LEFT SIDE: Exit always visible on phones */}
             <div className="flex items-start gap-4">
               <button
                 onClick={() => setTvMode(false)}
@@ -236,7 +370,6 @@ export default function App() {
                   Game {totalGames ? safeIndex + 1 : 0} of {totalGames}
                 </div>
 
-                {/* BYES AT TOP */}
                 <div className="text-slate-700 font-semibold mt-1">
                   Byes:{" "}
                   <span className="font-normal text-slate-700">
@@ -246,7 +379,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* RIGHT SIDE: Game arrows */}
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setTvGameIndex((i) => Math.max(0, i - 1))}
@@ -274,12 +406,9 @@ export default function App() {
             </div>
           </div>
 
-          {/* COURTS */}
           <div className="space-y-4">
             {(round?.courts ?? []).map((c, index) => {
               const color = accentColors[index % accentColors.length];
-              const numberText = numbersOnlyDash(c.group ?? []);
-
               return (
                 <div
                   key={`game-${safeIndex}-court-${c.courtNumber}`}
@@ -291,7 +420,7 @@ export default function App() {
                     </div>
 
                     <div className="text-base sm:text-lg font-extrabold text-right leading-snug break-words">
-                      {numberText}
+                      {numbersOnlyDash(c.group)}
                     </div>
                   </div>
                 </div>
@@ -299,7 +428,7 @@ export default function App() {
             })}
           </div>
 
-          {/* NO Reset All + NO Regenerate on purpose */}
+          {/* No reset/regenerate buttons on TV mode by design */}
         </div>
       </div>
     );
@@ -312,7 +441,7 @@ export default function App() {
         <div className="rounded-3xl bg-white/80 backdrop-blur shadow-sm border border-slate-200 p-6">
           <div className="text-2xl font-bold">Pickleball Scheduler</div>
           <div className="text-slate-600 mt-1">
-            Generate court assignments for couples play or round robin (individuals).
+            Balanced byes + minimized repeats (RR avoids repeat partners only).
           </div>
 
           <div className="mt-6 grid gap-4">
@@ -415,17 +544,12 @@ export default function App() {
                 Reset
               </button>
             </div>
-          </div>
-        </div>
 
-        {rounds.length ? (
-          <div className="mt-6 rounded-3xl bg-white/80 backdrop-blur shadow-sm border border-slate-200 p-6">
-            <div className="font-semibold">Last generated (preview)</div>
-            <div className="text-sm text-slate-600 mt-1">
-              Click “Generate Assignments” to jump straight to TV Mode.
+            <div className="text-xs text-slate-600 pt-2">
+              Note: Byes are balanced and repeats are minimized, but some repeats can still be unavoidable depending on counts.
             </div>
           </div>
-        ) : null}
+        </div>
       </div>
     </div>
   );
