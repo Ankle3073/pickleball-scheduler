@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 
 /**
- * Version 2.x+
+ * Pickleball Scheduler (v2.x "Pro TV")
  * - Couples OR Round Robin (individuals)
  * - Courts input: count (e.g., 8) OR list/ranges (e.g., 1-3,5,6)
  * - Inputs are TEXT so phone keyboard supports "-" and ","
@@ -9,7 +9,9 @@ import { useMemo, useState } from "react";
  * - Setup Reset clears everything
  * - TV mode: Exit (left), labeled Prev/Next, NO Reset/Regenerate (safer)
  * - TV mode: Byes at top
- * - TV mode display: numbers only, separated by dashes (e.g., "3 - 7" or "12 - 18 - 4 - 22")
+ * - Display is numbers only with dashes
+ *   - Couples: "3 - 7"
+ *   - Round Robin (fixed teams): "12 - 4  vs  19 - 7" (pro look)
  * - Balanced byes across the whole session
  * - Couples: minimize repeat matchups across games
  * - Round Robin: fixed teams (first two partners, last two partners) and minimize repeat PARTNERS only
@@ -469,9 +471,26 @@ export default function App() {
                       Court {c.courtNumber}
                     </div>
 
-                    <div className="text-base sm:text-lg font-extrabold text-right leading-snug break-words">
-                      {numbersOnlyDash(c.group)}
-                    </div>
+                    {/* PRO MATCH DISPLAY */}
+                    {mode === "couples" ? (
+                      <div className="text-base sm:text-lg font-extrabold text-right leading-snug break-words">
+                        {numbersOnlyDash(c.group)}
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-end gap-3 flex-wrap">
+                        <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 shadow-sm text-base sm:text-lg font-extrabold">
+                          {c.group[0]} - {c.group[1]}
+                        </div>
+
+                        <div className="px-3 py-1 rounded-full bg-slate-900 text-white text-sm sm:text-base font-black tracking-wide">
+                          VS
+                        </div>
+
+                        <div className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 shadow-sm text-base sm:text-lg font-extrabold">
+                          {c.group[2]} - {c.group[3]}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               );
